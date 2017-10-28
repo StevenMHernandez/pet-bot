@@ -52,3 +52,5 @@ add_custom_target(
 )
 
 add_executable(${PROJECT_NAME} ${SRC_LIST})
+
+include_directories(.piolibdeps/AWS\ IoT\ ESP8266\ Arduino\ Websockets/src)

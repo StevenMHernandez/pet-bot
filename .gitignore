@@ -2,3 +2,4 @@
 .piolibdeps
 CMakeListsPrivate.txt
 .idea
+src/config.h
