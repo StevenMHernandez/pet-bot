@@ -1,19 +1,11 @@
 #include "Arduino.h"
 #include "config.h"
+#include "pin_mappings.h"
+#include "bitmap_helpers.h"
 #include <ESP8266WiFi.h>
 #include "config/ConnectionParams.h"
 #include "aws/ESP8266DateTimeProvider.h"
 #include <epd.h>
-
-#define ONBOARD_LED 16
-
-#define TYPE_PIN_A 14
-#define TYPE_PIN_B 12
-#define TYPE_PIN_C 17
-
-#define VARIANT_PIN_A 16
-#define VARIANT_PIN_B 5
-#define VARIANT_PIN_C 4
 
 const char *AP_SSID = SSID_NAME;
 const char *AP_PASS = SSID_PASS;
@@ -31,6 +23,16 @@ ConnectionParams cp(sigv4);
 WebSocketClientAdapter adapter(cp);
 MqttClient client(adapter, cp);
 
+char filename[11];
+
+void renderBitmap(int status) {
+    epd_clear();
+    buildBitmapFileName(filename, status);
+    epd_disp_string(filename, 0, 200);
+    // epd_disp_bitmap(filename, 0, 0);
+    epd_udpate();
+}
+
 void test_screen() {
     epd_clear();
     epd_disp_bitmap("DOG1.BMP", 0, 0);
@@ -46,13 +48,6 @@ void test_screen() {
     epd_udpate();
 }
 
-void setup_screen() {
-    epd_set_memory(MEM_TF);
-    epd_set_color(BLACK, WHITE);
-    epd_screen_rotation(EPD_INVERSION);
-    epd_set_en_font(GBK64);
-}
-
 void setup_pins() {
     pinMode(TYPE_PIN_A, INPUT_PULLUP);
     pinMode(TYPE_PIN_B, INPUT_PULLUP);
@@ -61,9 +56,13 @@ void setup_pins() {
     pinMode(VARIANT_PIN_A, INPUT_PULLUP);
     pinMode(VARIANT_PIN_B, INPUT_PULLUP);
     pinMode(VARIANT_PIN_C, INPUT_PULLUP);
+}
 
-    pinMode(ONBOARD_LED, OUTPUT);
-    digitalWrite(ONBOARD_LED, LOW);
+void setup_screen() {
+    epd_set_memory(MEM_TF);
+    epd_set_color(BLACK, WHITE);
+    epd_screen_rotation(EPD_INVERSION);
+    epd_set_en_font(GBK64);
 }
 
 void setup_wifi_mqtt() {
@@ -79,8 +78,8 @@ void setup_wifi_mqtt() {
     if (res == 0) {
         client.subscribe("calendar", 0, [](const char *topic, const char *msg) {
             epd_clear();
-            // epd_disp_bitmap("123.BMP", 0, 0);
-            epd_disp_string("ASCII64: Hello, World!", 0, 450);
+            renderBitmap(STATUS_HAS_MESSAGE); // TODO: check if there is a message or not
+            // epd_disp_bitmap("123.BMP", 0, 0); // TODO: write the msg to the screen as well
             epd_udpate();
         });
     }
@@ -97,6 +96,11 @@ void setup() {
 }
 
 void loop() {
+    // TODO: handle this with an interrupt
+    if (toggleChanged()) {
+        renderBitmap(STATUS_NO_MESSAGE);
+    }
+
     if (client.isConnected()) {
         client.yield();
     } else {
