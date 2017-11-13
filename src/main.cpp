@@ -27,25 +27,16 @@ char filename[11];
 
 void renderBitmap(int status) {
     epd_clear();
+    epd_disp_string("loading...", 240, 750);
+    epd_udpate();
+
+    epd_clear();
     buildBitmapFileName(filename, status);
-    epd_disp_string(filename, 0, 200);
-    // epd_disp_bitmap(filename, 0, 0);
-    epd_udpate();
-}
+    epd_disp_bitmap(filename, 0, 0);
 
-void test_screen() {
-    epd_clear();
-    epd_disp_bitmap("DOG1.BMP", 0, 0);
-    epd_disp_string("BOW", 360, 250);
-    epd_disp_string("WOW", 360, 350);
-    epd_disp_string("WOW", 360, 450);
-    epd_udpate();
-
-    delay(10000);
-
-    epd_clear();
-    epd_disp_bitmap("DOG0.BMP", 0, 0);
-    epd_udpate();
+    if (status == STATUS_NO_MESSAGE) {
+        epd_udpate();
+    }
 }
 
 void setup_pins() {
@@ -62,7 +53,7 @@ void setup_screen() {
     epd_set_memory(MEM_TF);
     epd_set_color(BLACK, WHITE);
     epd_screen_rotation(EPD_INVERSION);
-    epd_set_en_font(GBK64);
+    epd_set_en_font(GBK32);
 }
 
 void setup_wifi_mqtt() {
@@ -79,7 +70,20 @@ void setup_wifi_mqtt() {
         client.subscribe("calendar", 0, [](const char *topic, const char *msg) {
             epd_clear();
             renderBitmap(STATUS_HAS_MESSAGE); // TODO: check if there is a message or not
-            // epd_disp_bitmap("123.BMP", 0, 0); // TODO: write the msg to the screen as well
+            // TODO: display message here
+            epd_disp_string("teaha3sd5hst35", 330, 100);
+            epd_disp_string("teaha3sd5hst35", 330, 150);
+            epd_disp_string("teaha3sd5hst35", 330, 200);
+            epd_disp_string("teaha3sd5hst35", 330, 250);
+            epd_disp_string("teaha3sd5hst35", 330, 300);
+            epd_disp_string("teaha3sd5hst35", 330, 350);
+            epd_disp_string("teaha3sd5hst35", 330, 400);
+            epd_disp_string("teaha3sd5hst35", 330, 450);
+            epd_disp_string("teaha3sd5hst35", 330, 500);
+            epd_disp_string("teaha3sd5hst35", 330, 550);
+            epd_disp_string("teaha3sd5hst35", 330, 600);
+            epd_disp_string("teaha3sd5hst35", 330, 650);
+            epd_disp_string("teaha3sd5hst35", 330, 700);
             epd_udpate();
         });
     }
@@ -91,13 +95,15 @@ void setup() {
     setup_pins();
     setup_screen();
     setup_wifi_mqtt();
-
-    test_screen();
 }
 
 void loop() {
     // TODO: handle this with an interrupt
     if (toggleChanged()) {
+        // This delay accounts for moving from the top position to last position without stopping in the middle
+        // Otherwise, we would `renderBitmap` then in the next iteration of `loop`, we would notice another
+        // `toggleChanged` and then `renderBitmap` a second time.
+        delay(500);
         renderBitmap(STATUS_NO_MESSAGE);
     }
 
