@@ -113,4 +113,7 @@ void loop() {
         Serial.println("Not connected...");
         delay(2000);
     }
+
+    epd_enter_stopmode();
+    ESP.deepSleep(1 * 60 * 1000000); // Sleep for 1 minute
 }
