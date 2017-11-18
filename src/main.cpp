@@ -1,11 +1,15 @@
 #include "Arduino.h"
+#include <ESP8266WiFi.h>
+#include <epd.h>
+#include <aJSON.h>
 #include "config.h"
 #include "pin_mappings.h"
 #include "bitmap_helpers.h"
-#include <ESP8266WiFi.h>
 #include "config/ConnectionParams.h"
 #include "aws/ESP8266DateTimeProvider.h"
-#include <epd.h>
+
+#define SHADOW_STATUS_REPORTED "reported"
+#define SHADOW_STATUS_DESIRED "desired"
 
 const char *AP_SSID = SSID_NAME;
 const char *AP_PASS = SSID_PASS;
@@ -44,7 +48,6 @@ void setup_pins() {
     pinMode(TYPE_PIN_B, INPUT_PULLUP);
     pinMode(TYPE_PIN_C, INPUT_PULLUP);
 
-    pinMode(VARIANT_PIN_A, INPUT_PULLUP);
     pinMode(VARIANT_PIN_B, INPUT_PULLUP);
     pinMode(VARIANT_PIN_C, INPUT_PULLUP);
 }
@@ -56,35 +59,77 @@ void setup_screen() {
     epd_set_en_font(GBK32);
 }
 
+void update_thing_shadow(char *status, char *key, char *value) {
+    aJsonObject *rootObj, *stateObj, *reportedObj;
+    rootObj = aJson.createObject();
+    aJson.addItemToObject(rootObj, "state", stateObj = aJson.createObject());
+    aJson.addItemToObject(stateObj, status, reportedObj = aJson.createObject());
+    aJson.addStringToObject(reportedObj, key, value);
+
+    char *json = aJson.print(rootObj);
+    client.publish("$aws/things/pet-test/shadow/update", json, 0, false);
+    free(json);
+}
+
+void update_thing_shadow(char *status, char *key, int value) {
+    aJsonObject *rootObj, *stateObj, *reportedObj;
+    rootObj = aJson.createObject();
+    aJson.addItemToObject(rootObj, "state", stateObj = aJson.createObject());
+    aJson.addItemToObject(stateObj, status, reportedObj = aJson.createObject());
+    aJson.addNumberToObject(reportedObj, key, value);
+
+    char *json = aJson.print(rootObj);
+    client.publish("$aws/things/pet-test/shadow/update", json, 0, false);
+    free(json);
+}
+
 void setup_wifi_mqtt() {
     WiFi.begin(AP_SSID, AP_PASS);
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
     }
 
     int res = client.connect();
-    Serial.printf("mqtt connect=%d\n", res);
 
     if (res == 0) {
-        client.subscribe("calendar", 0, [](const char *topic, const char *msg) {
-            epd_clear();
-            renderBitmap(STATUS_HAS_MESSAGE); // TODO: check if there is a message or not
-            // TODO: display message here
-            epd_disp_string("teaha3sd5hst35", 330, 100);
-            epd_disp_string("teaha3sd5hst35", 330, 150);
-            epd_disp_string("teaha3sd5hst35", 330, 200);
-            epd_disp_string("teaha3sd5hst35", 330, 250);
-            epd_disp_string("teaha3sd5hst35", 330, 300);
-            epd_disp_string("teaha3sd5hst35", 330, 350);
-            epd_disp_string("teaha3sd5hst35", 330, 400);
-            epd_disp_string("teaha3sd5hst35", 330, 450);
-            epd_disp_string("teaha3sd5hst35", 330, 500);
-            epd_disp_string("teaha3sd5hst35", 330, 550);
-            epd_disp_string("teaha3sd5hst35", 330, 600);
-            epd_disp_string("teaha3sd5hst35", 330, 650);
-            epd_disp_string("teaha3sd5hst35", 330, 700);
-            epd_udpate();
+        update_thing_shadow((char *) SHADOW_STATUS_DESIRED, (char *) "type", getTypeName());
+        update_thing_shadow((char *) SHADOW_STATUS_DESIRED, (char *) "variant", getVariantNumber());
+
+        delay(100);
+
+        client.subscribe("$aws/things/pet-test/shadow/get/accepted", 0, [](const char *topic, const char *msg) {
+            // parse JSON, if there is a delta, update the screen
+            aJsonObject *jsonObject = aJson.parse((char *) msg);
+            aJsonObject *stateObject = aJson.getObjectItem(jsonObject, "state");
+            aJsonObject *deltaObject = aJson.getObjectItem(stateObject, "delta");
+            aJsonObject *desiredObject = aJson.getObjectItem(stateObject, "desired");
+
+            // Is there a delta? If so, we need to update the display
+            // Otherwise, we are fine to sleep
+            if (deltaObject != NULL && deltaObject->type != NULL && deltaObject->type == aJson_Object) {
+                epd_clear();
+
+                aJsonObject *message = aJson.getObjectItem(desiredObject, "message");
+
+                if (message->type == aJson_String && strcmp(message->valuestring, "") != 0) {
+                    renderBitmap(STATUS_HAS_MESSAGE);
+
+                    // TODO: handle multiline messages
+                    //                                         100-700
+                    epd_disp_string(message->valuestring, 330, 400);
+                } else {
+                    renderBitmap(STATUS_NO_MESSAGE);
+                }
+
+                epd_udpate();
+
+                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "message", message->valuestring);
+                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "type", getTypeName());
+                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "variant", getVariantNumber());
+
+                aJson.deleteItem(jsonObject);
+            }
+
         });
     }
 }
@@ -95,25 +140,16 @@ void setup() {
     setup_pins();
     setup_screen();
     setup_wifi_mqtt();
+
+    // Request device shadow
+    client.publish("$aws/things/pet-test/shadow/get", "{}", 0, false);
+    // Receive device shadow (see lambda above)
+    client.yield();
+
+    epd_enter_stopmode();
+    ESP.deepSleep(1 * 60 * 1000000); // Sleep for 1 minute // TODO: change based on the device shadow
 }
 
 void loop() {
-    // TODO: handle this with an interrupt
-    if (toggleChanged()) {
-        // This delay accounts for moving from the top position to last position without stopping in the middle
-        // Otherwise, we would `renderBitmap` then in the next iteration of `loop`, we would notice another
-        // `toggleChanged` and then `renderBitmap` a second time.
-        delay(500);
-        renderBitmap(STATUS_NO_MESSAGE);
-    }
-
-    if (client.isConnected()) {
-        client.yield();
-    } else {
-        Serial.println("Not connected...");
-        delay(2000);
-    }
-
-    epd_enter_stopmode();
-    ESP.deepSleep(1 * 60 * 1000000); // Sleep for 1 minute
+    // pass
 }

@@ -55,3 +55,4 @@ add_executable(${PROJECT_NAME} ${SRC_LIST})
 
 include_directories(.piolibdeps/AWS\ IoT\ ESP8266\ Arduino\ Websockets/src)
 include_directories(.piolibdeps/epd)
+include_directories(.piolibdeps/aJson_ID35)
