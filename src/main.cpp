@@ -83,6 +83,18 @@ void update_thing_shadow(char *status, char *key, int value) {
     free(json);
 }
 
+void update_thing_shadow(char *status, char *key, aJsonObject *value) {
+    aJsonObject *rootObj, *stateObj, *reportedObj;
+    rootObj = aJson.createObject();
+    aJson.addItemToObject(rootObj, "state", stateObj = aJson.createObject());
+    aJson.addItemToObject(stateObj, status, reportedObj = aJson.createObject());
+    aJson.addItemToObject(reportedObj, key, value);
+
+    char *json = aJson.print(rootObj);
+    client.publish("$aws/things/pet-test/shadow/update", json, 0, false);
+    free(json);
+}
+
 void setup_wifi_mqtt() {
     WiFi.begin(AP_SSID, AP_PASS);
     while (WiFi.status() != WL_CONNECTED) {
@@ -103,33 +115,38 @@ void setup_wifi_mqtt() {
             aJsonObject *stateObject = aJson.getObjectItem(jsonObject, "state");
             aJsonObject *deltaObject = aJson.getObjectItem(stateObject, "delta");
             aJsonObject *desiredObject = aJson.getObjectItem(stateObject, "desired");
+            aJsonObject *message = aJson.getObjectItem(desiredObject, "message");
 
             // Is there a delta? If so, we need to update the display
             // Otherwise, we are fine to sleep
             if (deltaObject != NULL && deltaObject->type != NULL && deltaObject->type == aJson_Object) {
                 epd_clear();
 
-                aJsonObject *message = aJson.getObjectItem(desiredObject, "message");
-
-                if (message->type == aJson_String && strcmp(message->valuestring, "") != 0) {
+                if (message->type == aJson_Array && ((int) aJson.getArraySize(message)) > 0) {
                     renderBitmap(STATUS_HAS_MESSAGE);
 
-                    // TODO: handle multiline messages
-                    //                                         100-700
-                    epd_disp_string(message->valuestring, 330, 400);
+                    int totalHeight = 600;
+                    int usedHeight = 50 * (int) aJson.getArraySize(message);
+                    int paddingTop = 100 + ((totalHeight - usedHeight) / 2);
+
+                    int size = (int) aJson.getArraySize(message);
+
+                    for (int i = 0; i < size; i++) {
+                        aJsonObject *m = aJson.getArrayItem(message, (unsigned char) i);
+                        epd_disp_string(m->valuestring, 330, paddingTop + (50 * i));
+                    }
+
+                    epd_udpate();
                 } else {
                     renderBitmap(STATUS_NO_MESSAGE);
                 }
 
-                epd_udpate();
-
-                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "message", message->valuestring);
+                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "message", message);
                 update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "type", getTypeName());
                 update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "variant", getVariantNumber());
 
                 aJson.deleteItem(jsonObject);
             }
-
         });
     }
 }
