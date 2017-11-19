@@ -164,7 +164,7 @@ void setup() {
     client.yield();
 
     epd_enter_stopmode();
-    ESP.deepSleep(1 * 60 * 1000000); // Sleep for 1 minute // TODO: change based on the device shadow
+    ESP.deepSleep(30 * 60 * 1000000); // Sleep for 30 minute // TODO: change based on the device shadow
 }
 
 void loop() {
