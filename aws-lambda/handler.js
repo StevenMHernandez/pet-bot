@@ -8,7 +8,7 @@ AWS.config.region = process.env.IOT_AWS_REGION;
 const iotData = new AWS.IotData({endpoint: process.env.IOT_ENDPOINT_HOST});
 
 module.exports.petBotCalendarEvent = (event, context, callback) => {
-    let message = splitMessage(event.body);
+    let message = splitMessage(event.body ? event.body : "");
 
     let params = {
         topic: '$aws/things/pet-test/shadow/update',

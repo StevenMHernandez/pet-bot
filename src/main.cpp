@@ -28,6 +28,7 @@ WebSocketClientAdapter adapter(cp);
 MqttClient client(adapter, cp);
 
 char filename[11];
+int sleepTime = 30; // in minutes
 
 void renderBitmap(int status) {
     epd_clear();
@@ -115,24 +116,26 @@ void setup_wifi_mqtt() {
             aJsonObject *stateObject = aJson.getObjectItem(jsonObject, "state");
             aJsonObject *deltaObject = aJson.getObjectItem(stateObject, "delta");
             aJsonObject *desiredObject = aJson.getObjectItem(stateObject, "desired");
-            aJsonObject *message = aJson.getObjectItem(desiredObject, "message");
+            aJsonObject *messageArray = aJson.getObjectItem(desiredObject, "message");
+            aJsonObject *sleepTimeObject = aJson.getObjectItem(desiredObject, "sleepTime");
+            sleepTime = sleepTimeObject->valueint;
 
             // Is there a delta? If so, we need to update the display
             // Otherwise, we are fine to sleep
             if (deltaObject != NULL && deltaObject->type != NULL && deltaObject->type == aJson_Object) {
                 epd_clear();
 
-                if (message->type == aJson_Array && ((int) aJson.getArraySize(message)) > 0) {
+                if (messageArray->type == aJson_Array && ((int) aJson.getArraySize(messageArray)) > 0) {
                     renderBitmap(STATUS_HAS_MESSAGE);
 
                     int totalHeight = 600;
-                    int usedHeight = 50 * (int) aJson.getArraySize(message);
+                    int usedHeight = 50 * (int) aJson.getArraySize(messageArray);
                     int paddingTop = 100 + ((totalHeight - usedHeight) / 2);
 
-                    int size = (int) aJson.getArraySize(message);
+                    int size = (int) aJson.getArraySize(messageArray);
 
                     for (int i = 0; i < size; i++) {
-                        aJsonObject *m = aJson.getArrayItem(message, (unsigned char) i);
+                        aJsonObject *m = aJson.getArrayItem(messageArray, (unsigned char) i);
                         epd_disp_string(m->valuestring, 330, paddingTop + (50 * i));
                     }
 
@@ -141,9 +144,10 @@ void setup_wifi_mqtt() {
                     renderBitmap(STATUS_NO_MESSAGE);
                 }
 
-                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "message", message);
+                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "message", messageArray);
                 update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "type", getTypeName());
                 update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "variant", getVariantNumber());
+                update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "sleepTime", sleepTime);
 
                 aJson.deleteItem(jsonObject);
             }
@@ -164,7 +168,7 @@ void setup() {
     client.yield();
 
     epd_enter_stopmode();
-    ESP.deepSleep(30 * 60 * 1000000); // Sleep for 30 minute // TODO: change based on the device shadow
+    ESP.deepSleep((uint32_t) (sleepTime * 60 * 1000000));
 }
 
 void loop() {
