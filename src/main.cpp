@@ -3,6 +3,7 @@
 #include <epd.h>
 #include <aJSON.h>
 #include "config.h"
+#include "time.h"
 #include "pin_mappings.h"
 #include "bitmap_helpers.h"
 #include "config/ConnectionParams.h"
@@ -28,7 +29,7 @@ WebSocketClientAdapter adapter(cp);
 MqttClient client(adapter, cp);
 
 char filename[11];
-int sleepTime = 30; // in minutes
+uint32_t sleepTime = 30; // in minutes
 
 void renderBitmap(int status) {
     epd_clear();
@@ -58,6 +59,15 @@ void setup_screen() {
     epd_set_color(BLACK, WHITE);
     epd_screen_rotation(EPD_INVERSION);
     epd_set_en_font(GBK32);
+}
+
+void enter_sleep_mode(uint32_t minimum_sleep_time) {
+    epd_enter_stopmode();
+    if (sleepTime > 0) {
+        ESP.deepSleep(sleepTime * SECONDS_PER_MINUTE * MICROSECONDS_PER_SECOND);
+    } else {
+        ESP.deepSleep(minimum_sleep_time);
+    }
 }
 
 void update_thing_shadow(char *status, char *key, char *value) {
@@ -150,6 +160,9 @@ void setup_wifi_mqtt() {
                 update_thing_shadow((char *) SHADOW_STATUS_REPORTED, (char *) "sleepTime", sleepTime);
 
                 aJson.deleteItem(jsonObject);
+
+                // The display takes about 20 seconds to refresh
+                enter_sleep_mode(20 * MICROSECONDS_PER_SECOND);
             }
         });
     }
@@ -164,11 +177,12 @@ void setup() {
 
     // Request device shadow
     client.publish("$aws/things/pet-test/shadow/get", "{}", 0, false);
+
     // Receive device shadow (see lambda above)
     client.yield();
 
-    epd_enter_stopmode();
-    ESP.deepSleep((uint32_t) (sleepTime * 60 * 1000000));
+    // No display update, so we restart as soon as possible
+    enter_sleep_mode(MICROSECONDS_PER_SECOND);
 }
 
 void loop() {
