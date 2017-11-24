@@ -1,0 +1,41 @@
+@startuml
+!define AWSPUML https://raw.githubusercontent.com/milo-minderbinder/AWS-PlantUML/release/17-10-18/dist
+!includeurl AWSPUML/common.puml
+!includeurl AWSPUML/ApplicationServices/AmazonAPIGateway/AmazonAPIGateway.puml
+!includeurl AWSPUML/Compute/AWSLambda/LambdaFunction/LambdaFunction.puml
+!includeurl AWSPUML/Storage/AmazonS3/AmazonS3.puml
+!includeurl AWSPUML/Storage/AmazonS3/bucket/bucket.puml
+!includeurl AWSPUML/General/AWScloud/AWScloud.puml
+!includeurl AWSPUML/General/genericdatabase/genericdatabase.puml
+!includeurl AWSPUML/InternetOfThings/AWSIoT/shadow/shadow.puml
+!includeurl AWSPUML/InternetOfThings/AWSIoT/thinggeneric/thinggeneric.puml
+!includeurl AWSPUML/InternetOfThings/AWSIoT/topic/topic.puml
+
+node "GoogleCalendar"
+node "IFTTT"
+THINGGENERIC(thing, "Pet Bot")
+
+AWSCLOUD(aws) {
+    SHADOW(shadow)
+    AMAZONAPIGATEWAY(api, "POST /dev")
+    LAMBDAFUNCTION(lambda, "petBotCalendarEvent")
+    frame "AWS IoT MQTT Topics" {
+        AWSIOT_TOPIC(getTopic,"$aws/things/thingName/shadow/get")
+        AWSIOT_TOPIC(getAcceptedTopic,"$aws/things/thingName/shadow/get/accepted")
+        AWSIOT_TOPIC(updateTopic,"$aws/things/thingName/shadow/update")
+    }
+}
+
+updateTopic <-- thing
+updateTopic --> shadow
+getTopic <-- thing
+getTopic --> shadow
+getAcceptedTopic --> thing
+getAcceptedTopic <-- shadow
+
+GoogleCalendar --> IFTTT
+IFTTT --> api
+lambda <-- api
+lambda --> updateTopic
+
+@enduml
