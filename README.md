@@ -11,9 +11,9 @@ Events (created through IFTTT) push data through an API Gateway to an AWS Lambda
 
 This repository contains:
 
-* [3d models](3d) which were printed on white
+* [3d models](3d) which were 3d printed in white
 * [API Gateway/AWS Lambda functions](aws-lambda) used in the "serverless" backend
 * [C++ code](src) used to program the microcontroller
 * [Wiring schematics](schematic)
 * [SD Card images](sdcard)
-* [Network Diagram](diagram) for the whole system
+* [Network Diagram](network) for the whole system
